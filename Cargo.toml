@@ -1,23 +1,22 @@
 [package]
-name = "rustros_tf"
+name = "rosrust_tf2"
 version = "0.1.0"
-authors = ["Arjo Chakravarty <arjo129@gmail.com>"]
+authors = ["Antoine Pouillaude <pouillaude.a@gmail.com>", "Arjo Chakravarty <arjo129@gmail.com>"]
 edition = "2018"
-description = "This is a rust port of the [ROS tf library](http://wiki.ros.org/tf). It is intended for being used in robots to help keep track of multiple coordinate frames and is part of a larger suite of rust libraries that provide support for various robotics related functionality."
-license = "MIT OR Apache-2.0"
-keywords = ["transforms", "robotics", "ROS", "tf"]
-readme = "readme.md"
-documentation = "https://arjo129.github.io/rustros_tf/rustros_tf/index.html"
-repository = "https://github.com/arjo129/rustros_tf"
-homepage = "https://github.com/arjo129/rustros_tf"
+description = "This is a rust port of the [ROS tf2 library](http://wiki.ros.org/tf2). It is intended for being used in robots to help keep track of multiple coordinate frames and is part of a larger suite of rust libraries that provide support for various robotics related functionality."
+license = "GNU General Public License v3.0"
+keywords = ["transforms", "robotics", "ROS", "tf2"]
+readme = "README.md"
+repository = "https://github.com/MathuxNY-73/rosrust_tf2"
+homepage = "https://github.com/MathuxNY-73/rosrust_tf2/"
 
 [lib]
 crate-type = ["lib"]
 bench = false
 
 [dependencies]
-rosrust = "0.9"
-rosrust_msg = "0.1"
-ndarray = "0.13.1"
-ndarray-linalg = { version = "0.12", features = ["netlib"] }
-nalgebra = "0.20"
+rosrust = "0.9.8"
+rosrust_msg = "0.1.4"
+ndarray = "0.15.3"
+ndarray-linalg = { version = "0.14.1", features = ["netlib"] }
+nalgebra = "0.29.0"
