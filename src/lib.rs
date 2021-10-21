@@ -21,8 +21,10 @@ use std::collections::HashSet;
 use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 
-pub mod msg;
+mod core;
+mod buffer;
 mod transforms;
+mod msg;
 
 impl Eq for msg::geometry_msgs::TransformStamped {}
 
