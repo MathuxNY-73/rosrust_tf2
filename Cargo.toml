@@ -14,6 +14,9 @@ homepage = "https://github.com/MathuxNY-73/rosrust_tf2/"
 crate-type = ["lib"]
 bench = false
 
+[env]
+ROSRUST_MSG_PATH="/home/apouillaude/Documents/workspace/lab/rosrust_tf2/src"
+
 [dependencies]
 rosrust = "0.9.8"
 rosrust_msg = "0.1.4"
