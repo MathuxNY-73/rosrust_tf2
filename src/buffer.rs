@@ -3,12 +3,10 @@ use std::collections::VecDeque;
 use std::collections::HashSet; 
 
 use rosrust;
-use rosrust_msg as msg;
 
 use crate::core::{
     TransformInterface,
     TransformWithTimeInterface,
-    TransformStamped,
     TfError
 };
 use crate::transforms;
@@ -19,6 +17,7 @@ use crate::utils::{
     to_transform,
     to_transform_stamped
 };
+use crate::msg;
 
 
 const DEFAULT_CACHE_TIME: i32 = 10;
@@ -44,15 +43,14 @@ impl TfBuffer {
         TfBuffer{child_transform_index: HashMap::new(), transform_data: HashMap::new()}
     }
 
-    pub fn handle_incoming_transforms(&mut self, transforms: msg::tf2_msgs::TFMessage, static_tf: bool) {
+    pub fn handle_incoming_transforms(&mut self, transforms: msg::TFMessage, static_tf: bool) {
         for transform in transforms.transforms {
-            let transform_stamped = TransformStamped(transform);
-            self.add_transform(&transform_stamped, static_tf);
-            self.add_transform(&get_inverse(transform_stamped), static_tf);
+            self.add_transform(&transform, static_tf);
+            self.add_transform(&get_inverse(transform), static_tf);
         }
     }
 
-    fn add_transform (&mut self, transform: &TransformStamped, static_tf: bool) {
+    fn add_transform(&mut self, transform: &msg::TransformStamped, static_tf: bool) {
         //TODO: Detect is new transform will create a loop
         if self.child_transform_index.contains_key(&transform.header.frame_id) {
             let res = self.child_transform_index.get_mut(&transform.header.frame_id.clone()).unwrap();
@@ -127,7 +125,7 @@ impl TfBuffer {
 impl TransformInterface for TfBuffer {
     
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<TransformStamped,TfError> {
+    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped,TfError> {
         let source_frame = source_frame.to_string();
         let target_frame = target_frame.to_string();
         let path = self.retrieve_transform_path(source_frame.clone(), target_frame.clone())?;
@@ -155,24 +153,23 @@ impl TransformInterface for TfBuffer {
             first = intermediate.clone();                  
         }
         let final_tf = transforms::chain_transforms(&tflist);
-        let msg = msg::geometry_msgs::TransformStamped {
+        let msg = msg::TransformStamped {
             child_frame_id: target_frame.clone(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: source_frame.clone(), 
                 stamp: time,
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: final_tf.orientation.x, y: final_tf.orientation.y, z: final_tf.orientation.z, w: final_tf.orientation.w
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: final_tf.position.x, y: final_tf.position.y, z: final_tf.position.z
                 }
             }
         };
-        let transform = TransformStamped(msg);
-        Ok(transform)
+        Ok(msg)
     }
 
     // TODO(MathuxNY-73) implement those methods
@@ -183,7 +180,7 @@ impl TransformInterface for TfBuffer {
 }
 
 impl TransformWithTimeInterface for TfBuffer {
-    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, timeout: rosrust::Duration) ->  Result<TransformStamped,TfError> {
+    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
         let source_tf = self.lookup_transform(source_frame, fixed_frame, source_time)?;
         let target_tf = self.lookup_transform(target_frame, fixed_frame, target_time)?;
 
@@ -213,62 +210,62 @@ mod test {
         
         let nsecs = ((time - ((time.floor() as i64) as f64))*1E9) as u32;
 
-        let world_to_item = TransformStamped {
+        let world_to_item = msg::TransformStamped {
             child_frame_id: "item".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "world".to_string(),
                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 1f64, y: 0f64, z: 0f64
                 }
            }
         };
         buffer.add_transform(&world_to_item, true);
-        buffer.add_transform(&get_inverse(&world_to_item), true);
+        buffer.add_transform(&get_inverse(world_to_item), true);
 
-        let world_to_base_link = TransformStamped {
+        let world_to_base_link = msg::TransformStamped {
             child_frame_id: "base_link".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "world".to_string(),
                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0f64, y: time, z: 0f64
                 }
            }
         };
         buffer.add_transform(&world_to_base_link, false);
-        buffer.add_transform(&get_inverse(&world_to_base_link),  false);
+        buffer.add_transform(&get_inverse(world_to_base_link),  false);
 
-        let base_link_to_camera = TransformStamped {
+        let base_link_to_camera = msg::TransformStamped {
             child_frame_id: "camera".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "base_link".to_string(),
                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w:1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0.5f64, y: 0f64, z: 0f64
                 }
            }
         };
         buffer.add_transform(&base_link_to_camera, true);
-        buffer.add_transform(&get_inverse(&base_link_to_camera), true);
+        buffer.add_transform(&get_inverse(base_link_to_camera), true);
     }
 
 
@@ -278,18 +275,18 @@ mod test {
         let mut tf_buffer = TfBuffer::new();
         build_test_tree(&mut tf_buffer, 0f64);
         let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:0});
-        let expected = TransformStamped {
+        let expected = msg::TransformStamped {
             child_frame_id: "item".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "camera".to_string(), 
                 stamp: rosrust::Time{sec:0, nsec:0},
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0.5f64, y: 0f64, z: 0f64
                 }
             }
@@ -304,18 +301,18 @@ mod test {
         build_test_tree(&mut tf_buffer, 0f64);
         build_test_tree(&mut tf_buffer, 1f64);
         let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:700_000_000});
-        let expected = TransformStamped {
+        let expected = msg::TransformStamped {
             child_frame_id: "item".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "camera".to_string(), 
                 stamp: rosrust::Time{sec:0, nsec:700_000_000},
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0.5f64, y: -0.7f64, z: 0f64
                 }
             }
@@ -330,18 +327,18 @@ mod test {
         build_test_tree(&mut tf_buffer, 0f64);
         build_test_tree(&mut tf_buffer, 1f64);
         let res = tf_buffer.lookup_transform_with_time_travel("camera", rosrust::Time{sec:0, nsec: 400_000_000}, "camera", rosrust::Time{sec:0, nsec: 700_000_000}, "item");
-        let expected = TransformStamped {
+        let expected = msg::TransformStamped {
             child_frame_id: "camera".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "camera".to_string(), 
                 stamp: rosrust::Time{sec:0, nsec:700_000_000},
                 seq: 0
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0f64, y: 0.3f64, z: 0f64
                 }
             }
@@ -349,7 +346,7 @@ mod test {
         assert_approx_eq(res.unwrap(), expected);
     }
 
-    fn assert_approx_eq(msg1: TransformStamped, msg2: TransformStamped) {
+    fn assert_approx_eq(msg1: msg::TransformStamped, msg2: msg::TransformStamped) {
         assert_eq!(msg1.header, msg2.header);
         assert_eq!(msg1.child_frame_id, msg2.child_frame_id);
 
