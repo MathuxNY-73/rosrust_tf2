@@ -1,12 +1,11 @@
-use rosrust_msg as msg;
-
 use crate::transforms;
-use crate::core::{TransformStamped, TfError};
+use crate::core::TfError;
 use crate::utils::{
     to_transform,
     to_transform_stamped,
     get_nanos
 };
+use crate::msg;
 
 
 #[derive(Clone, Debug)] 
@@ -14,7 +13,7 @@ pub struct TfIndividualTransformChain {
     buffer_size: usize,
     static_tf: bool,
     //TODO:  Implement a circular buffer. Current method is slowww.
-    transform_chain: Vec<TransformStamped>
+    transform_chain: Vec<msg::TransformStamped>
 }
 
 
@@ -23,7 +22,7 @@ impl TfIndividualTransformChain {
         return TfIndividualTransformChain{buffer_size: 100, transform_chain:Vec::new(), static_tf: static_tf};
     }
 
-    pub fn add_to_buffer(&mut self, msg: TransformStamped) {
+    pub fn add_to_buffer(&mut self, msg: msg::TransformStamped) {
         
         let res = self.transform_chain.binary_search(&msg);
         
@@ -37,28 +36,27 @@ impl TfIndividualTransformChain {
         }
     }
 
-    pub fn get_closest_transform(&self, time: rosrust::Time) -> Result<TransformStamped, TfError> {
+    pub fn get_closest_transform(&self, time: rosrust::Time) -> Result<msg::TransformStamped, TfError> {
         if self.static_tf {
             return Ok(self.transform_chain.get(self.transform_chain.len()-1).unwrap().clone());
         }
 
-        let res = msg::geometry_msgs::TransformStamped {
+        let res = msg::TransformStamped {
             child_frame_id: "".to_string(),
-            header: msg::std_msgs::Header {
+            header: msg::Header {
                 frame_id: "".to_string(),
                 stamp: time,
                 seq: 1
             },
-            transform: msg::geometry_msgs::Transform{
-                rotation: msg::geometry_msgs::Quaternion{
+            transform: msg::Transform{
+                rotation: msg::Quaternion{
                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
                 },
-                translation: msg::geometry_msgs::Vector3{
+                translation: msg::Vector3{
                     x: 0f64, y: 0f64, z: 0f64
                 }
             }
         };
-        let res = TransformStamped(res);
 
         let res = self.transform_chain.binary_search(&res);
         match res {

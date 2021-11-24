@@ -1,10 +1,11 @@
 use std::sync::{Arc, RwLock};
 
 use rosrust;
-use rosrust_msg as msg;
 
-use crate::core::{TransformStamped, TfError, TransformInterface, TransformWithTimeInterface};
+use crate::core::{TfError, TransformInterface, TransformWithTimeInterface};
 use crate::buffer::TfBuffer;
+use crate::msg::MessageConverter;
+use crate::msg;
 
 
 ///This struct tries to be the same as the C++ version of `TransformListener`. Use this struct to lookup transforms.
@@ -39,13 +40,13 @@ impl TfListener {
         let buff = RwLock::new(TfBuffer::new());
         let arc = Arc::new(buff);
         let r1 = arc.clone();
-        let _subscriber_tf = rosrust::subscribe("tf", 100, move |v: msg::tf2_msgs::TFMessage| {
-            r1.write().unwrap().handle_incoming_transforms(v, true);
+        let _subscriber_tf = rosrust::subscribe("tf", 100, move |v: msg::ros_msg::TFMessage| {
+            r1.write().unwrap().handle_incoming_transforms(msg::TFMessage::from_msg(v), true);
         }).unwrap();
 
         let r2 = arc.clone();
-        let _subscriber_tf_static = rosrust::subscribe("tf_static", 100, move |v: msg::tf2_msgs::TFMessage| {
-            r2.write().unwrap().handle_incoming_transforms(v, true);
+        let _subscriber_tf_static = rosrust::subscribe("tf_static", 100, move |v: msg::ros_msg::TFMessage| {
+            r2.write().unwrap().handle_incoming_transforms(msg::TFMessage::from_msg(v), true);
         }).unwrap();
         
         TfListener {
@@ -58,7 +59,7 @@ impl TfListener {
 
 impl TransformInterface for TfListener {
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform(&self, from: &str, to: &str, time: rosrust::Time) ->  Result<TransformStamped,TfError> {
+    fn lookup_transform(&self, from: &str, to: &str, time: rosrust::Time) ->  Result<msg::TransformStamped,TfError> {
         self.buffer.read().unwrap().lookup_transform(from, to, time)
     }
 
@@ -71,7 +72,7 @@ impl TransformInterface for TfListener {
 
 impl TransformWithTimeInterface for TfListener {
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform_with_time_travel(&self, from: &str, time1: rosrust::Time, to: &str, time2: rosrust::Time, fixed_frame: &str, timeout: rosrust::Duration) ->  Result<TransformStamped,TfError> {
+    fn lookup_transform_with_time_travel(&self, from: &str, time1: rosrust::Time, to: &str, time2: rosrust::Time, fixed_frame: &str, timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
         self.buffer.read().unwrap().lookup_transform_with_time_travel(from, time1, to, time2, fixed_frame, timeout)
     }
 
