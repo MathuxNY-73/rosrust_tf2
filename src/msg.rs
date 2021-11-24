@@ -25,7 +25,7 @@ pub trait MessageConverter<Output=Self> {
 /**
  * NewType pattern on geometry_msgs::TransformStamped 
  */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TransformStamped {
     pub header: Header,
     pub child_frame_id: String,
@@ -38,12 +38,6 @@ impl MessageConverter for TransformStamped {
     fn from_msg(msg: Self::MessageType) -> TransformStamped { todo!() }
 
     fn toMsg(output: TransformStamped) -> Self::MessageType { todo!() }
-}
-
-impl PartialEq for TransformStamped {
-    fn eq(&self, other: &Self) -> bool {
-        todo!();
-    }
 }
 
 impl Eq for TransformStamped {}
@@ -60,7 +54,7 @@ impl PartialOrd for TransformStamped {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Transform {
     pub translation: Vector3,
     pub rotation: Quaternion
@@ -89,7 +83,7 @@ impl MessageConverter for Header {
     fn toMsg(output: Header) -> Self::MessageType { todo!() }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Vector3 {
     pub x: f64,
     pub y: f64,
@@ -104,7 +98,7 @@ impl MessageConverter for Vector3 {
     fn toMsg(output: Vector3) -> Self::MessageType { todo!() }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,
@@ -120,7 +114,7 @@ impl MessageConverter for Quaternion {
     fn toMsg(output: Quaternion) -> Self::MessageType { todo!() }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TFMessage {
     pub transforms: Vec<TransformStamped>,
 }
