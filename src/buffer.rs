@@ -326,7 +326,7 @@ mod test {
         let mut tf_buffer = TfBuffer::new();
         build_test_tree(&mut tf_buffer, 0f64);
         build_test_tree(&mut tf_buffer, 1f64);
-        let res = tf_buffer.lookup_transform_with_time_travel("camera", rosrust::Time{sec:0, nsec: 400_000_000}, "camera", rosrust::Time{sec:0, nsec: 700_000_000}, "item");
+        let res = tf_buffer.lookup_transform_with_time_travel("camera", rosrust::Time{sec:0, nsec: 400_000_000}, "camera", rosrust::Time{sec:0, nsec: 700_000_000}, "item", rosrust::Duration{sec:0, nsec: 700_000_000});
         let expected = msg::TransformStamped {
             child_frame_id: "camera".to_string(),
             header: msg::Header {

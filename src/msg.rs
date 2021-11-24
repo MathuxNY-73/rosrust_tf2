@@ -74,7 +74,7 @@ impl MessageConverter for Transform {
     fn toMsg(output: Transform) -> Self::MessageType { todo!() }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
     pub seq: u32,
     pub frame_id: String,
