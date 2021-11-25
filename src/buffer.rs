@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::collections::HashSet; 
+use std::error::Error;
 
 use rosrust;
 
@@ -118,7 +119,7 @@ impl TfBuffer {
 impl TransformInterface for TfBuffer {
     
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped,TfError> {
+    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped, TfError> {
         let source_frame = source_frame.to_string();
         let target_frame = target_frame.to_string();
         let path = self.retrieve_transform_path(source_frame.clone(), target_frame.clone())?;
@@ -143,7 +144,7 @@ impl TransformInterface for TfBuffer {
                 }
             } ;
             tflist.push(tf);
-            first = intermediate.clone();                  
+            first = intermediate.clone();
         }
         let final_tf = transforms::chain_transforms(tflist);
         let msg = msg::TransformStamped {

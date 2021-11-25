@@ -1,6 +1,8 @@
 use rosrust::Time;
 use rosrust::Duration;
 use std::result::Result;
+use std::error::Error;
+use std::fmt;
 
 use crate::msg;
 
@@ -18,6 +20,11 @@ pub enum TfError {
     CouldNotAcquireLock
 }
 
+impl fmt::Display for TfError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {todo!()}
+}
+
+impl Error for TfError {}
 
 pub trait TransformInterface {
     fn lookup_transform(&self, target_frame: &str, source_frame: &str, time: Time) -> Result<msg::TransformStamped, TfError>;
