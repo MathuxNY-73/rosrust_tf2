@@ -15,20 +15,18 @@ pub enum TfError {
     /// Error due ti the transform not yet being available.
     AttemptedLookUpInFuture, 
     /// There is no path between the from and to frame.
-    CouldNotFindTransform,
-    /// In the event that a write is simultaneously happening with a read of the same tf buffer
-    CouldNotAcquireLock
+    CouldNotFindTransform
 }
 
 impl fmt::Display for TfError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {todo!()}
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {todo!()}
 }
 
 impl Error for TfError {}
 
 pub trait TransformInterface {
-    fn lookup_transform(&self, target_frame: &str, source_frame: &str, time: Time) -> Result<msg::TransformStamped, TfError>;
-    fn can_transform(&self, target_frame: &str, source_frame: &str, time: Time, timeout: Duration) -> Result<bool, TfError>;
+    fn lookup_transform(&self, target_frame: &str, source_frame: &str, time: Time) -> Result<msg::TransformStamped, Box<dyn Error>>;
+    fn can_transform(&self, target_frame: &str, source_frame: &str, time: Time, timeout: Duration) -> Result<bool, Box<dyn Error>>;
 
     fn transform_to_output<'a, T>(&self, input: &'a T, output: &'a T, target_frame: &str, timeout: Option<Duration>) -> &'a T;
     fn transform_from_input<T>(&self, input: T, target: &str, timeout: Option<Duration>) -> T;
@@ -37,8 +35,8 @@ pub trait TransformInterface {
 pub trait TransformWithTimeInterface {
     fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: Time,
                        source_frame: &str, source_time: Time,
-                       fixed_frame: &str, timeout: Duration) -> Result<msg::TransformStamped, TfError>;
+                       fixed_frame: &str, timeout: Duration) -> Result<msg::TransformStamped, Box<dyn Error>>;
 
     fn can_transform_with_time_travel(&self, target_frame: &str, target_time: Time, source_frame: &str, source_time: Time, fixed_frame: &str, 
-        timeout: Duration) -> Result<bool, TfError>;
+        timeout: Duration) -> Result<bool, Box<dyn Error>>;
 }
