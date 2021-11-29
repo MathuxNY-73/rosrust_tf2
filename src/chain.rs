@@ -1,7 +1,6 @@
 use crate::transforms;
 use crate::core::TfError;
 use crate::utils::{
-    to_transform,
     to_transform_stamped,
     get_nanos
 };
@@ -68,8 +67,8 @@ impl TfIndividualTransformChain {
                 if x >= self.transform_chain.len() {
                     return Err(TfError::AttemptedLookUpInFuture)
                 }
-                let tf1 = to_transform(self.transform_chain.get(x-1).unwrap().clone());
-                let tf2 = to_transform(self.transform_chain.get(x).unwrap().clone());
+                let tf1 = self.transform_chain.get(x-1).unwrap().clone();
+                let tf2 = self.transform_chain.get(x).unwrap().clone();
                 let time1 = self.transform_chain.get(x-1).unwrap().header.stamp;
                 let time2 = self.transform_chain.get(x).unwrap().header.stamp;
                 let header = self.transform_chain.get(x).unwrap().header.clone();
@@ -77,7 +76,7 @@ impl TfIndividualTransformChain {
                 let total_duration = get_nanos(time2 - time1) as f64;
                 let desired_duration = get_nanos(time - time1) as f64;
                 let weight = 1.0 - desired_duration/total_duration;
-                let final_tf = transforms::interpolate(tf1, tf2, weight);
+                let final_tf = transforms::interpolate(tf1.transform, tf2.transform, weight);
                 let ros_msg = to_transform_stamped(final_tf, header.frame_id, child_frame, time);
                 Ok(ros_msg)
             }

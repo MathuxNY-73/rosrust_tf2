@@ -14,7 +14,6 @@ use crate::graph::TfGraphNode;
 use crate::chain::TfIndividualTransformChain;
 use crate::utils::{
     get_inverse,
-    to_transform,
     to_transform_stamped
 };
 use crate::msg;
@@ -38,12 +37,13 @@ impl TfBuffer {
 
     pub fn handle_incoming_transforms(&mut self, transforms: msg::TFMessage, static_tf: bool) {
         for transform in transforms.transforms {
-            self.add_transform(&transform, static_tf);
-            self.add_transform(&get_inverse(transform), static_tf);
+            let inverse_transform = get_inverse(transform.clone());
+            self.add_transform(transform, static_tf);
+            self.add_transform(inverse_transform, static_tf);
         }
     }
 
-    fn add_transform(&mut self, transform: &msg::TransformStamped, static_tf: bool) {
+    fn add_transform(&mut self, transform: msg::TransformStamped, static_tf: bool) {
         //TODO: Detect is new transform will create a loop
         if self.child_transform_index.contains_key(&transform.header.frame_id) {
             let res = self.child_transform_index.get_mut(&transform.header.frame_id.clone()).unwrap();
@@ -123,20 +123,20 @@ impl TransformInterface for TfBuffer {
         let target_frame = target_frame.to_string();
         let path = self.retrieve_transform_path(source_frame.clone(), target_frame.clone())?;
         
-        let mut tflist = Vec::<transforms::Transform>::new();
+        let mut tflist = Vec::<msg::Transform>::new();
         let mut first = source_frame.clone();
         for intermediate in path {
             let node = TfGraphNode{child: intermediate.clone(), parent: first.clone()};
             let time_cache = self.transform_data.get(&node).unwrap();
             let transform = time_cache.get_closest_transform(time)?.transform.clone();
-            let tf = transforms::Transform{
-                orientation: transforms::Quaternion{
+            let tf = msg::Transform{
+                rotation: msg::Quaternion{
                     x: transform.rotation.x, 
                     y: transform.rotation.y, 
                     z: transform.rotation.z,
                     w: transform.rotation.w
                 },
-                position: transforms::Position{
+                translation: msg::Vector3 {
                     x: transform.translation.x, 
                     y: transform.translation.y, 
                     z: transform.translation.z
@@ -145,7 +145,7 @@ impl TransformInterface for TfBuffer {
             tflist.push(tf);
             first = intermediate.clone();                  
         }
-        let final_tf = transforms::chain_transforms(&tflist);
+        let final_tf = transforms::chain_transforms(tflist);
         let msg = msg::TransformStamped {
             child_frame_id: target_frame.clone(),
             header: msg::Header {
@@ -155,10 +155,10 @@ impl TransformInterface for TfBuffer {
             },
             transform: msg::Transform{
                 rotation: msg::Quaternion{
-                    x: final_tf.orientation.x, y: final_tf.orientation.y, z: final_tf.orientation.z, w: final_tf.orientation.w
+                    x: final_tf.rotation.x, y: final_tf.rotation.y, z: final_tf.rotation.z, w: final_tf.rotation.w
                 },
                 translation: msg::Vector3{
-                    x: final_tf.position.x, y: final_tf.position.y, z: final_tf.position.z
+                    x: final_tf.translation.x, y: final_tf.translation.y, z: final_tf.rotation.z
                 }
             }
         };
@@ -177,12 +177,9 @@ impl TransformWithTimeInterface for TfBuffer {
         let source_tf = self.lookup_transform(source_frame, fixed_frame, source_time)?;
         let target_tf = self.lookup_transform(target_frame, fixed_frame, target_time)?;
 
-        let source_tf = to_transform(source_tf); // TODO it seems that source_tf can be moved as it is shadowed here
-        let target_tf = to_transform(target_tf);
+        let transforms = transforms::invert_transform(source_tf.transform); // TODO same here it seems that source_tf could be moved.
 
-        let transforms = transforms::invert_transform(&source_tf); // TODO same here it seems that source_tf could be moved.
-
-        let result = transforms::chain_transforms(&vec!(target_tf, transforms));
+        let result = transforms::chain_transforms(vec!(target_tf.transform, transforms));
 
         Ok(to_transform_stamped(result, source_frame.to_string(), target_frame.to_string(), source_time))
     }
@@ -219,8 +216,9 @@ mod test {
                 }
            }
         };
-        buffer.add_transform(&world_to_item, true);
-        buffer.add_transform(&get_inverse(world_to_item), true);
+        let world_to_item_inverse = get_inverse(world_to_item.clone());
+        buffer.add_transform(world_to_item, true);
+        buffer.add_transform(world_to_item_inverse, true);
 
         let world_to_base_link = msg::TransformStamped {
             child_frame_id: "base_link".to_string(),
@@ -238,8 +236,9 @@ mod test {
                 }
            }
         };
-        buffer.add_transform(&world_to_base_link, false);
-        buffer.add_transform(&get_inverse(world_to_base_link),  false);
+        let world_to_base_link_inv = get_inverse(world_to_base_link.clone());
+        buffer.add_transform(world_to_base_link, false);
+        buffer.add_transform(world_to_base_link_inv,  false);
 
         let base_link_to_camera = msg::TransformStamped {
             child_frame_id: "camera".to_string(),
@@ -257,8 +256,9 @@ mod test {
                 }
            }
         };
-        buffer.add_transform(&base_link_to_camera, true);
-        buffer.add_transform(&get_inverse(base_link_to_camera), true);
+        let base_link_to_camera_inv = get_inverse(base_link_to_camera.clone());
+        buffer.add_transform(base_link_to_camera, true);
+        buffer.add_transform(base_link_to_camera_inv, true);
     }
 
 
