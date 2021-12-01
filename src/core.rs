@@ -1,11 +1,8 @@
 use rosrust::Time;
 use rosrust::Duration;
 use std::result::Result;
-use std::ops::{Deref, DerefMut};
 
 use crate::msg;
-
-
 
 
 /// Enumerates the different types of errors

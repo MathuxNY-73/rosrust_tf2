@@ -19,7 +19,7 @@ pub trait MessageConverter<Output=Self> {
     type MessageType;
 
     fn from_msg(msg: Self::MessageType) -> Output;
-    fn toMsg(output: Output) -> Self::MessageType;
+    fn to_msg(output: Output) -> Self::MessageType;
 }
 
 /**
@@ -35,9 +35,9 @@ pub struct TransformStamped {
 impl MessageConverter for TransformStamped {
     type MessageType = ros_msg::TransformStamped;
 
-    fn from_msg(msg: Self::MessageType) -> TransformStamped { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> TransformStamped { todo!() }
 
-    fn toMsg(output: TransformStamped) -> Self::MessageType { todo!() }
+    fn to_msg(_output: TransformStamped) -> Self::MessageType { todo!() }
 }
 
 impl Eq for TransformStamped {}
@@ -63,9 +63,9 @@ pub struct Transform {
 impl MessageConverter for Transform {
     type MessageType = ros_msg::Transform;
 
-    fn from_msg(msg: Self::MessageType) -> Transform { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> Transform { todo!() }
 
-    fn toMsg(output: Transform) -> Self::MessageType { todo!() }
+    fn to_msg(_output: Transform) -> Self::MessageType { todo!() }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,9 +78,9 @@ pub struct Header {
 impl MessageConverter for Header {
     type MessageType = ros_msg::Header;
 
-    fn from_msg(msg: Self::MessageType) -> Header { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> Header { todo!() }
 
-    fn toMsg(output: Header) -> Self::MessageType { todo!() }
+    fn to_msg(_output: Header) -> Self::MessageType { todo!() }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -93,9 +93,9 @@ pub struct Vector3 {
 impl MessageConverter for Vector3 {
     type MessageType = ros_msg::Vector3;
 
-    fn from_msg(msg: Self::MessageType) -> Vector3 { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> Vector3 { todo!() }
 
-    fn toMsg(output: Vector3) -> Self::MessageType { todo!() }
+    fn to_msg(_output: Vector3) -> Self::MessageType { todo!() }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -109,9 +109,9 @@ pub struct Quaternion {
 impl MessageConverter for Quaternion {
     type MessageType = ros_msg::Quaternion;
 
-    fn from_msg(msg: Self::MessageType) -> Quaternion { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> Quaternion { todo!() }
 
-    fn toMsg(output: Quaternion) -> Self::MessageType { todo!() }
+    fn to_msg(_output: Quaternion) -> Self::MessageType { todo!() }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -122,7 +122,7 @@ pub struct TFMessage {
 impl MessageConverter for TFMessage {
     type MessageType = ros_msg::TFMessage;
 
-    fn from_msg(msg: Self::MessageType) -> TFMessage { todo!() }
+    fn from_msg(_msg: Self::MessageType) -> TFMessage { todo!() }
 
-    fn toMsg(output: TFMessage) -> Self::MessageType { todo!() }
+    fn to_msg(_output: TFMessage) -> Self::MessageType { todo!() }
 }

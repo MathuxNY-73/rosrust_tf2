@@ -20,15 +20,8 @@ use crate::utils::{
 use crate::msg;
 
 
-const DEFAULT_CACHE_TIME: i32 = 10;
-const MAX_GRAPH_DEPTH: u32 = 1000;
-
-
-enum TransformableResult 
-{
-    TransformAvailable,
-    TransformFailure
-}
+const _DEFAULT_CACHE_TIME: i32 = 10;
+const _MAX_GRAPH_DEPTH: u32 = 1000;
 
 
 #[derive(Clone, Debug)]
@@ -173,14 +166,14 @@ impl TransformInterface for TfBuffer {
     }
 
     // TODO(MathuxNY-73) implement those methods
-    fn can_transform(&self, target_frame: &str, source_frame: &str, time: rosrust::Time, timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
+    fn can_transform(&self, _target_frame: &str, _source_frame: &str, _time: rosrust::Time, _timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
 
-    fn transform_to_output<'a, T>(&self, input: &'a T, output: &'a T, target_frame: &str, timeout: Option<rosrust::Duration>) -> &'a T {todo!()}
-    fn transform_from_input<T>(&self, input: T, target: &str, timeout: Option<rosrust::Duration>) -> T {todo!()}
+    fn transform_to_output<'a, T>(&self, _input: &'a T, _output: &'a T, _target_frame: &str, _timeout: Option<rosrust::Duration>) -> &'a T {todo!()}
+    fn transform_from_input<T>(&self, _input: T, _target: &str, _timeout: Option<rosrust::Duration>) -> T {todo!()}
 }
 
 impl TransformWithTimeInterface for TfBuffer {
-    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
+    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, _timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
         let source_tf = self.lookup_transform(source_frame, fixed_frame, source_time)?;
         let target_tf = self.lookup_transform(target_frame, fixed_frame, target_time)?;
 
@@ -194,8 +187,8 @@ impl TransformWithTimeInterface for TfBuffer {
         Ok(to_transform_stamped(result, source_frame.to_string(), target_frame.to_string(), source_time))
     }
 
-    fn can_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time, fixed_frame: &str, 
-        timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
+    fn can_transform_with_time_travel(&self, _target_frame: &str, _target_time: rosrust::Time, _source_frame: &str, _source_time: rosrust::Time, _fixed_frame: &str, 
+        _timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
 }
 
 #[cfg(test)]
