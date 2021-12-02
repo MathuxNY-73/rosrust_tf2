@@ -1,39 +1,62 @@
 use nalgebra::geometry;
+use nalgebra::base;
 
 use crate::msg;
+
+
+// TODO find a better localization for this helper method
+fn from_na_vector_to_vector_msg(vector: base::Vector3<f64>) -> msg::Vector3
+{
+    msg::Vector3 {
+        x: vector[0],
+        y: vector[1],
+        z: vector[2]
+    }
+}
+
+// TODO find a better localization for this helper method
+fn from_vector_msg_to_na_vector(vector: msg::Vector3) -> base::Vector3<f64>
+{
+    let msg::Vector3{x, y, z} = vector;
+    base::Vector3::new(x, y, z)
+}
+
+// TODO find a better localization for this helper method
+fn from_quaternion_msg_to_na_quarternion(quaternion: msg::Quaternion) -> geometry::UnitQuaternion<f64>
+{
+    let msg::Quaternion {x, y, z, w} = quaternion;
+    geometry::UnitQuaternion::new_normalize(
+        geometry::Quaternion::new(w, x, y, z)
+    )
+}
+
+
+// TODO find a better localization for this helper method
+fn from_na_quaternion_to_quaternion_msg(quaternion: geometry::Quaternion<f64>) -> msg::Quaternion
+{
+    msg::Quaternion {
+        x: quaternion.coords[0],
+        y: quaternion.coords[1],
+        z: quaternion.coords[2],
+        w: quaternion.coords[3]
+    }
+}
 
 ///Converts a transform from xyz translation + quaternion format to an SE3 matrix
 pub fn isometry_from_transform_msg(transform: msg::Transform) -> geometry::Isometry3<f64>
 {
-    let msg::Quaternion {x: qx, y: qy, z: qz, w: qw} = transform.rotation;
-    let msg::Vector3{x: tx, y: ty, z: tz} = transform.translation;
+    let qt = from_quaternion_msg_to_na_quarternion(transform.rotation);
+    let trans = from_vector_msg_to_na_vector(transform.translation);
 
-    let qt = geometry::UnitQuaternion::new_normalize(
-        geometry::Quaternion::new(qw, qx, qy, qz)
-    );
-    let trans = geometry::Translation3::new(tx, ty, tz);
-
-    geometry::Isometry3::new(trans.vector, qt.scaled_axis())
+    geometry::Isometry3::new(trans, qt.scaled_axis())
 }
 
 ///Converts an SE3 matrix to a Transform
 pub fn transform_msg_from_isometry(isometry: geometry::Isometry3<f64>) -> msg::Transform
 {
-    let translation_vec = isometry.translation.vector;
-    let quaternion = isometry.rotation;
-
     msg::Transform {
-        translation: msg::Vector3 {
-            x: translation_vec[0],
-            y: translation_vec[1],
-            z: translation_vec[2]
-        },
-        rotation: msg::Quaternion {
-            x: quaternion.coords[0],
-            y: quaternion.coords[1],
-            z: quaternion.coords[2],
-            w: quaternion.coords[3]
-        }
+        translation: from_na_vector_to_vector_msg(isometry.translation.vector),
+        rotation: from_na_quaternion_to_quaternion_msg(*isometry.rotation)
     }
 }
 
@@ -62,46 +85,23 @@ pub fn chain_transforms(transforms: Vec<msg::Transform>) -> msg::Transform {
 }
 
 pub fn interpolate(t1: msg::Transform, t2: msg::Transform, weight: f64) -> msg::Transform {
-    let r1 = geometry::UnitQuaternion::new_normalize(
-        geometry::Quaternion::new(t1.rotation.w, t1.rotation.x, t1.rotation.y, t1.rotation.z));
-    let r2 = geometry::UnitQuaternion::new_normalize(
-        geometry::Quaternion::new(t2.rotation.w, t2.rotation.x, t2.rotation.y, t2.rotation.z));
-    let res  = r1.try_slerp(&r2, weight, 1e-9);
+    let iso1 = isometry_from_transform_msg(t1);
+    let iso2 = isometry_from_transform_msg(t2);
+    let res  = iso1.try_lerp_slerp(&iso2, 1f64 - weight, 1e-9);
     match res {
-        Some(qt) => {
-            msg::Transform{
-                translation: msg::Vector3 {
-                    x: t1.translation.x * weight + t2.translation.x * (1.0 - weight),
-                    y: t1.translation.y * weight + t2.translation.y * (1.0 - weight),
-                    z: t1.translation.z * weight + t2.translation.z * (1.0 - weight) 
-                },
-                rotation: msg::Quaternion {
-                    x: qt.coords[0],
-                    y: qt.coords[1],
-                    z: qt.coords[2],
-                    w: qt.coords[3]
-                }
-            } 
-        }
+        Some(iso) => transform_msg_from_isometry(iso),
         None => {
+            let translation_lerp = iso1.translation.vector.lerp(&iso2.translation.vector, 1f64 - weight);
             if weight > 0.5 {
                 msg::Transform{
-                    translation: msg::Vector3 {
-                        x: t1.translation.x * weight + t2.translation.x * (1.0 - weight),
-                        y: t1.translation.y * weight + t2.translation.y * (1.0 - weight),
-                        z: t1.translation.z * weight + t2.translation.z * (1.0 - weight) 
-                    },
-                    rotation: t1.rotation.clone()
+                    translation: from_na_vector_to_vector_msg(translation_lerp),
+                    rotation: from_na_quaternion_to_quaternion_msg(*iso1.rotation)
                 }
             }
             else {
                 msg::Transform{
-                    translation: msg::Vector3 {
-                        x: t1.translation.x * weight + t2.translation.x * (1.0 - weight),
-                        y: t1.translation.y * weight + t2.translation.y * (1.0 - weight),
-                        z: t1.translation.z * weight + t2.translation.z * (1.0 - weight) 
-                    },
-                    rotation: t2.rotation.clone()
+                    translation: from_na_vector_to_vector_msg(translation_lerp),
+                    rotation: from_na_quaternion_to_quaternion_msg(*iso2.rotation)
                 }
             }
         } 
