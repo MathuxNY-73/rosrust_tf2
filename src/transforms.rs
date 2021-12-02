@@ -1,97 +1,115 @@
 
-use ndarray::prelude::*;
-use ndarray::arr2;
-use ndarray_linalg::trace::Trace;
-use ndarray_linalg::solve::Inverse;
 use nalgebra::geometry;
+use nalgebra::base::{
+    Matrix3,
+    Matrix4
+};
 
 use crate::msg;
 
-
-/// Converts a SE3 transformation matrix to a quaternion
-pub fn quaternion_from_transform_matrix(a: Array2<f64>) ->  msg::Quaternion {
-    let tr = a.trace().unwrap();
-    let trace = tr - 1f64;
-    if trace > 0f64 {
-        let qw = (1f64 + trace).sqrt()/2f64;
-        msg::Quaternion{
-            x: (a[[2,1]] - a[[1,2]])/(4f64*qw),
-            y: (a[[0,2]] - a[[2,0]])/(4f64*qw), 
-            z: (a[[1,0]] - a[[0,1]])/(4f64*qw), 
-            w: qw
+pub fn quaternion_from_transform_matrix(a: Matrix3<f64>) -> msg::Quaternion
+{
+    let trace = a.trace();
+    if trace > 0f64
+    {
+        let s = 0.5f64 / (1f64 + trace).sqrt();
+        msg::Quaternion {
+            x: (a[(2, 1)] - a[(1, 2)]) * s,
+            y: (a[(0, 2)] - a[(2, 0)]) * s,
+            z: (a[(1, 0)] - a[(0, 1)]) * s,
+            w: 0.25f64 / s
         }
     }
-    else if a[[0,0]] > a[[1,1]] && a[[0,0]] > a[[2,2]] {
-        let s = 2.0f64 * (1.0f64 + a[[0,0]] - a[[1,1]] - a[[2,2]]).sqrt();
-        msg::Quaternion{
-            w: (a[[2,1]] - a[[1,2]] ) / s,
+    else if a[(0, 0)] > a[(1, 1)] && a[(0, 0)] > a[(2, 2)]
+    {
+        let s = 2f64 * (1f64 + a[(0, 0)] - a[(1, 1)] - a[(2, 2)]).sqrt();
+        msg::Quaternion {
             x: 0.25f64 * s,
-            y: (a[[0,1]] + a[[1,0]] ) / s,
-            z: (a[[0,2]] + a[[2,0]] ) / s
+            y: (a[(0, 1)] + a[(1, 0)]) / s,
+            z: (a[(0, 2)] + a[(2, 0)]) / s,
+            w: (a[(2, 1)] - a[(1, 2)]) / s,
         }
-    } else if a[[1,1]] > a[[2,2]] {
-        let s = 2.0f64 * (1.0f64 + a[[1,1]] - a[[0,0]] - a[[2,2]]).sqrt();
-        msg::Quaternion{
-            w: (a[[0,2]] - a[[2,0]] ) / s,
-            x: (a[[0,1]] + a[[1,0]] ) / s,
+    }
+    else if a[(1, 1)] > a[(2, 2)]
+    {
+        let s = 2f64 * (1f64 + a[(1, 1)] - a[(0, 0)] - a[(2, 2)]).sqrt();
+        msg::Quaternion {
+            x: (a[(0, 1)] + a[(1, 0)]) / s,
             y: 0.25f64 * s,
-            z: (a[[1,2]] + a[[2,1]] ) / s
+            z: (a[(1, 2)] + a[(2, 1)]) / s,
+            w: (a[(0, 2)] - a[(2, 0)] ) / s,
         }
-    } else {
-        let s = 2.0f64 * (1.0f64 + a[[2,2]] - a[[0,0]] - a[[1,1]]).sqrt();
+    }
+    else
+    {
+        let s = 2f64 * (1f64 + a[(2, 2)] - a[(0, 0)] - a[(1, 1)]).sqrt();
         msg::Quaternion{
-            w: (a[[1,0]] - a[[0,1]] ) / s,
-            x: (a[[0,2]] + a[[2,0]] ) / s,
-            y: (a[[1,2]] + a[[2,1]] ) / s,
-            z: 0.25f64 * s
+            x: (a[(0, 2)] + a[(2, 0)] ) / s,
+            y: (a[(1, 2)] + a[(2, 1)] ) / s,
+            z: 0.25f64 * s,
+            w: (a[(1, 0)] - a[(0, 1)] ) / s,
         }
     }
 }
 
 /// Converts a quaternion to an SE3 matrix
-pub fn transform_matrix_from_quaternion(msg: msg::Quaternion) ->  Array2<f64> {
-    let s  = (msg.x*msg.x+ msg.y*msg.y + msg.z*msg.z + msg.w*msg.w).sqrt();
-    let a =  arr2(&[[1f64 - 2f64*s*(msg.y*msg.y + msg.z*msg.z), 2f64*s*(msg.x*msg.y - msg.z*msg.w), 2f64*s*(msg.x*msg.z + msg.y*msg.w), 0f64],
-                    [2f64*s*(msg.x*msg.y - msg.w*msg.z), 1f64 - 2f64*s*(msg.x*msg.x + msg.z*msg.z), 2f64*s*(msg.y*msg.z + msg.w*msg.x), 0f64],
-                    [2f64*s*(msg.x*msg.z+ msg.w*msg.y), 2f64*s*(msg.y*msg.z-msg.w*msg.x), 1f64 - 2f64*s*(msg.x*msg.x + msg.y*msg.y), 0f64],
-                    [0f64, 0f64, 0f64, 1f64]]);
+pub fn transform_matrix_from_quaternion(quaternion: msg::Quaternion) ->  Matrix3<f64> {
+    let msg::Quaternion { x, y, z, w} = quaternion;
+
+    let s  = (x * x + y * y + z * z + w * w).sqrt();
+    let a =  Matrix3::new(
+            1f64 - 2f64 * s * (y * y + z * z),
+            2f64 * s * (x * y - z * w),
+            2f64 * s * (x * z + y * w),
+            2f64 * s * (x * y + z * w),
+            1f64 - 2f64 * s * (x * x + z * z),
+            2f64 * s * (y * z - x * w),
+            2f64 * s * (x * z - y * w),
+            2f64 * s * (y * z + x * w),
+            1f64 - 2f64 * s * (x * x + y * y)
+        );
     a
 }
 
 ///Converts a transform from xyz translation + quaternion format to an SE3 matrix
-pub fn se3_from_transform(transform: msg::Transform) -> Array2<f64> {
-    let mut a = transform_matrix_from_quaternion(transform.rotation);
-    a[[3,0]] = transform.translation.x;
-    a[[3,1]] = transform.translation.y;
-    a[[3,2]] = transform.translation.z;
-    a
+pub fn se3_from_transform(transform: msg::Transform) -> Matrix4<f64> {
+    let matrix = transform_matrix_from_quaternion(transform.rotation);
+    let matrix = matrix.insert_column(3, 0f64);
+    let mut matrix = matrix.insert_row(3, 0f64);
+    matrix[(3, 0)] = transform.translation.x;
+    matrix[(3, 1)] = transform.translation.y;
+    matrix[(3, 2)] = transform.translation.z;
+    matrix[(3, 3)] = 1f64;
+    matrix
 }
 
 ///Converts an SE3 matrix to a Transform
-pub fn transform_from_se3(a: Array2<f64>) -> msg::Transform {
+pub fn transform_from_se3(a: Matrix4<f64>) -> msg::Transform
+{
+    let rotation_matrix = a.fixed_slice::<3,3>(0,0).clone_owned();
     msg::Transform {
         translation: msg::Vector3 {
-            x: a[[3,0]],
-            y: a[[3,1]],
-            z: a[[3,2]]
+            x: a[(3, 0)],
+            y: a[(3, 1)],
+            z: a[(3, 2)]
         },
-        rotation: quaternion_from_transform_matrix(a)
+        rotation: quaternion_from_transform_matrix(rotation_matrix)
     }
 }
 
 ///Get the inverse transform
 pub fn invert_transform(transform: msg::Transform) -> msg::Transform {
     let m = se3_from_transform(transform);
-    let m_inv = m.inv().unwrap();
+    let m_inv = m.try_inverse().unwrap();
     transform_from_se3(m_inv)
 }
 
 ///Chain multiple transforms together. Takes in a vector of transforms. The vector should be in order of desired transformations
 pub fn chain_transforms(transforms: Vec<msg::Transform>) -> msg::Transform {
-    let mut final_transform = Array::eye(4);
+    let mut final_transform = Matrix4::identity();
     for t in transforms {
         let tf = se3_from_transform(t);
-        final_transform = tf.dot(&final_transform);
+        final_transform = tf * final_transform;
     } 
     transform_from_se3(final_transform)
 }
@@ -156,6 +174,7 @@ mod test {
             w: 1f64
         };
         let arr = transform_matrix_from_quaternion(qt.clone());
+        assert_eq!(arr, Matrix3::identity());
         let q2 = quaternion_from_transform_matrix(arr);
         assert_eq!(qt, q2);
     }
