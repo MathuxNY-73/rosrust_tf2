@@ -22,8 +22,14 @@ mod graph;
 mod utils;
 mod chain;
 mod msg;
+mod frames {
+    pub mod frame;
+    pub mod timed_frame;
+    pub mod static_frame;
+    pub mod frame_visitor;
+}
 
 
 pub use crate::core::TransformInterface;
 pub use crate::core::TransformWithTimeInterface;
-pub use crate::buffer::TfBuffer;
+pub use crate::buffer::Buffer;
