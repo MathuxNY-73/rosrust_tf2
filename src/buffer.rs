@@ -30,7 +30,7 @@ struct ValidationError {}
 pub struct Buffer { // TODO[MathuxNY-73] This a self referential struct thus there is a need of a Pin somewhere here.
     // TODO[MathuxNY-73]: it is necessary to put frames behind a locking mechanism so that Buffer is Send + Sync, thus thread safe
     // TODO[MathuxNY-73]: find a way to do it lock free
-    frame_name_to_visitable_frame: HashMap<FrameName, Option<Box<dyn VisitableFrame + Send + Sync>>>,
+    frame_name_to_visitable_frame: HashMap<FrameName, Option<Box<dyn VisitableFrame + Send>>>,
     timed_frames: Vec<TimedFrame>,
     static_frames: Vec<StaticFrame>
 }

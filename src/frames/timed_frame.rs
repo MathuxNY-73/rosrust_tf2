@@ -94,6 +94,33 @@ impl TimedFrame
         }
     }
 
+    fn prune_cache(&mut self) -> Result<(), String>
+    {
+        if let Some(youngest_tf) = self.transform_cache.first()
+        {
+            let latest_time = youngest_tf.header.stamp;
+            println!("Latest time is {} from youngest_tf {}", latest_time, youngest_tf.header.frame_id);
+            while let Some(oldest_tf) = self.transform_cache.last()
+            {
+                if oldest_tf.header.stamp + self.max_storage_time < latest_time
+                {
+                    println!("Pruning {} with time {}", oldest_tf.header.frame_id, oldest_tf.header.stamp);
+                    self.transform_cache.pop();
+                }
+                else
+                {
+                    break;
+                }
+            }
+            Ok(())
+        }
+        else
+        {
+            // ? Do we want to err. Maybe we want to just silently to nothing. Or add a debug log line ?
+            Err(String::from("No transform in the cache"))
+        }
+    }
+
     pub fn get_latest_time_and_parent(&self) -> (rosrust::Time, Option<&str>)
     {
         match self.transform_cache.first()
@@ -150,9 +177,10 @@ impl TimedFrame
                         Ok(())
                     },
                 }
-            },
-        }
-        // TODO Prune the list to remove old transforms
+            }
+        }?;
+        self.prune_cache()?;
+        Ok(())
     }
 }
 
@@ -184,7 +212,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_timed_get_too_old_parent()
+    fn test_get_too_old_data()
     {
         let timed_frame = TimedFrame {
             transform_cache: (5..10).map(|t| msg::TransformStamped {
@@ -203,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_too_young_parent()
+    fn test_get_too_young_data()
     {
         let timed_frame = TimedFrame {
             transform_cache: (5..10).map(|t| msg::TransformStamped {
@@ -222,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_inexisting_parent()
+    fn test_get_inexisting_data()
     {
         let timed_frame = TimedFrame {
             transform_cache: Vec::new(),
@@ -234,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_parent()
+    fn test_get_data()
     {
         let timed_frame = TimedFrame {
             transform_cache: (0..10).map(|t| msg::TransformStamped {
@@ -271,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_closest_with_no_transforms()
+    fn test_get_closest_with_no_transforms()
     {
         let timed_frame = TimedFrame {
             transform_cache: Vec::new(),
@@ -282,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_closest_with_1_transform()
+    fn test_get_closest_with_1_transform()
     {
         let timed_frame = TimedFrame {
             transform_cache: [msg::TransformStamped {
@@ -319,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_get_closest_with_more_than_2_transform()
+    fn test_get_closest_with_more_than_2_transform()
     {
         let timed_frame = TimedFrame {
             transform_cache: (3..7).map(|t| msg::TransformStamped {
@@ -368,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_insert_data()
+    fn test_insert_data()
     {
         let mut timed_frame = TimedFrame::default();
 
@@ -407,7 +435,7 @@ mod tests {
         let res = timed_frame.insert_data(msg::TransformStamped {
                 header: msg::Header {
                     frame_id: String::from("parent_3"),
-                    stamp: rosrust::Time::from_nanos(72e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
+                    stamp: rosrust::Time::from_nanos(72.5e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
                     ..msg::Header::default()
                 },
                 ..msg::TransformStamped::default()
@@ -415,6 +443,7 @@ mod tests {
         );
 
         assert_eq!(res, Ok(()));
+        assert_eq!(timed_frame.transform_cache.len(), 2);
 
         let expected_frame_ids = [
             String::from("parent_1"),
@@ -430,7 +459,7 @@ mod tests {
         let res = timed_frame.insert_data(msg::TransformStamped {
                 header: msg::Header {
                     frame_id: String::from("parent_4"),
-                    stamp: rosrust::Time::from_nanos(74e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
+                    stamp: rosrust::Time::from_nanos(73.5e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
                     ..msg::Header::default()
                 },
                 ..msg::TransformStamped::default()
@@ -438,6 +467,7 @@ mod tests {
         );
 
         assert_eq!(res, Ok(()));
+        assert_eq!(timed_frame.transform_cache.len(), 3);
 
         let expected_frame_ids = [
             String::from("parent_4"),
@@ -454,7 +484,7 @@ mod tests {
         let res = timed_frame.insert_data(msg::TransformStamped {
                 header: msg::Header {
                     frame_id: String::from("parent_5"),
-                    stamp: rosrust::Time::from_nanos(74e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
+                    stamp: rosrust::Time::from_nanos(73.5e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
                     ..msg::Header::default()
                 },
                 ..msg::TransformStamped::default()
@@ -466,5 +496,21 @@ mod tests {
             _ => panic!("Assertion failure: expected Err got Ok")
         }
         assert_eq!(timed_frame.transform_cache.len(), 3);
+    
+        // Test insertion of much younger transform and pruning of the cache
+        let res = timed_frame.insert_data(msg::TransformStamped {
+                header: msg::Header {
+                    frame_id: String::from("parent_6"),
+                    stamp: rosrust::Time::from_nanos(76e9 as i64 + DEFAULT_MAX_STORAGE_TIME),
+                    ..msg::Header::default()
+                },
+                ..msg::TransformStamped::default()
+            }
+        );
+
+        assert_eq!(res, Ok(()));
+        assert_eq!(timed_frame.transform_cache.len(), 1);
+
+        assert_eq!(timed_frame.transform_cache.first().unwrap().header.frame_id, "parent_6");
     }
 }
