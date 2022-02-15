@@ -20,4 +20,4 @@ ROSRUST_MSG_PATH="/home/apouillaude/Documents/workspace/lab/rosrust_tf2/src"
 [dependencies]
 rosrust = "0.9.8"
 rosrust_msg = "0.1.4"
-nalgebra = "0.29.0"
+nalgebra = "0.30.1"
