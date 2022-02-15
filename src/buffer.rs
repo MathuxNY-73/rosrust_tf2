@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::collections::HashSet; 
+use std::error::Error;
 
 use rosrust;
 
@@ -118,7 +119,7 @@ impl TfBuffer {
 impl TransformInterface for TfBuffer {
     
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped,TfError> {
+    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped, Box<dyn Error>> {
         let source_frame = source_frame.to_string();
         let target_frame = target_frame.to_string();
         let path = self.retrieve_transform_path(source_frame.clone(), target_frame.clone())?;
@@ -143,7 +144,7 @@ impl TransformInterface for TfBuffer {
                 }
             } ;
             tflist.push(tf);
-            first = intermediate.clone();                  
+            first = intermediate.clone();
         }
         let final_tf = transforms::chain_transforms(tflist);
         let msg = msg::TransformStamped {
@@ -166,14 +167,14 @@ impl TransformInterface for TfBuffer {
     }
 
     // TODO(MathuxNY-73) implement those methods
-    fn can_transform(&self, _target_frame: &str, _source_frame: &str, _time: rosrust::Time, _timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
+    fn can_transform(&self, _target_frame: &str, _source_frame: &str, _time: rosrust::Time, _timeout: rosrust::Duration) -> Result<bool, Box<dyn Error>> {todo!()}
 
     fn transform_to_output<'a, T>(&self, _input: &'a T, _output: &'a T, _target_frame: &str, _timeout: Option<rosrust::Duration>) -> &'a T {todo!()}
     fn transform_from_input<T>(&self, _input: T, _target: &str, _timeout: Option<rosrust::Duration>) -> T {todo!()}
 }
 
 impl TransformWithTimeInterface for TfBuffer {
-    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, _timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
+    fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, _timeout: rosrust::Duration) ->  Result<msg::TransformStamped, Box<dyn Error>> {
         let source_tf = self.lookup_transform(source_frame, fixed_frame, source_time)?;
         let target_tf = self.lookup_transform(target_frame, fixed_frame, target_time)?;
 
@@ -185,7 +186,7 @@ impl TransformWithTimeInterface for TfBuffer {
     }
 
     fn can_transform_with_time_travel(&self, _target_frame: &str, _target_time: rosrust::Time, _source_frame: &str, _source_time: rosrust::Time, _fixed_frame: &str, 
-        _timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
+        _timeout: rosrust::Duration) -> Result<bool, Box<dyn Error>> {todo!()}
 }
 
 #[cfg(test)]
