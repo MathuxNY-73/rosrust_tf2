@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::collections::VecDeque;
-use std::collections::HashSet; 
 
 use rosrust;
 
@@ -10,29 +8,41 @@ use crate::core::{
     TfError
 };
 use crate::transforms;
-use crate::graph::TfGraphNode;
-use crate::chain::TfIndividualTransformChain;
 use crate::utils::{
     get_inverse,
     to_transform_stamped
 };
+use crate::frames::frame_visitor::VisitableFrame;
+use crate::frames::timed_frame::TimedFrame;
+use crate::frames::static_frame::StaticFrame;
+
 use crate::msg;
 
 
 const _DEFAULT_CACHE_TIME: i32 = 10;
 const _MAX_GRAPH_DEPTH: u32 = 1000;
 
+type FrameName = String;
 
-#[derive(Clone, Debug)]
-pub struct TfBuffer {
-    child_transform_index: HashMap<String, HashSet<String> >,
-    transform_data: HashMap<TfGraphNode, TfIndividualTransformChain>
+
+struct ValidationError {}
+
+pub struct Buffer { // TODO[MathuxNY-73] This a self referential struct thus there is a need of a Pin somewhere here.
+    // TODO[MathuxNY-73]: it is necessary to put frames behind a locking mechanism so that Buffer is Send + Sync, thus thread safe
+    // TODO[MathuxNY-73]: find a way to do it lock free
+    frame_name_to_visitable_frame: HashMap<FrameName, Option<Box<dyn VisitableFrame + Send>>>,
+    timed_frames: Vec<TimedFrame>,
+    static_frames: Vec<StaticFrame>
 }
 
-impl TfBuffer {
+impl Buffer {
 
-    pub fn new() -> TfBuffer {
-        TfBuffer{child_transform_index: HashMap::new(), transform_data: HashMap::new()}
+    pub fn new() -> Self {
+        Buffer {
+            frame_name_to_visitable_frame: HashMap::new(),
+            timed_frames: Vec::new(),
+            static_frames: Vec::new()
+        }
     }
 
     pub fn handle_incoming_transforms(&mut self, transforms: msg::TFMessage, static_tf: bool) {
@@ -43,33 +53,42 @@ impl TfBuffer {
         }
     }
 
-    fn add_transform(&mut self, transform: msg::TransformStamped, static_tf: bool) {
-        //TODO: Detect is new transform will create a loop
-        if self.child_transform_index.contains_key(&transform.header.frame_id) {
-            let res = self.child_transform_index.get_mut(&transform.header.frame_id.clone()).unwrap();
-            res.insert(transform.child_frame_id.clone());
+    fn add_transform(&mut self, transform: msg::TransformStamped, static_tf: bool) -> Result<(), ValidationError>{ // TODO return a result Result
+        //TODO: Detect is new transform will create a loop. Is it something that we want to have ?
+        let _parent_frame_name = &transform.header.frame_id;
+        let child_frame_name = &transform.child_frame_id;
+
+        match self.frame_name_to_visitable_frame.get_mut(child_frame_name)
+        {
+            Some(_visitable_frame) =>
+            {
+                // TODO remove this. This is not thread safe so find a better way.
+                //visitable_frame.unwrap().borrow_mut().accept_insertion(InsertVisitor{});
+                todo!()
+            },
+            None => {
+                if static_tf 
+                {
+                    self.frame_name_to_visitable_frame.insert(child_frame_name.clone(), None);
+                    let static_frame = StaticFrame::new(transform);
+                    self.static_frames.push(static_frame);
+                }
+                else
+                {
+                    self.frame_name_to_visitable_frame.insert(child_frame_name.clone(), None);
+                    let timed_frame = TimedFrame::default();
+                    self.timed_frames.push(timed_frame);
+                }
+            }
         }
-        else {
-            self.child_transform_index.insert(transform.header.frame_id.clone(), HashSet::new());
-            let res = self.child_transform_index.get_mut(&transform.header.frame_id.clone()).unwrap();
-            res.insert(transform.child_frame_id.clone());
-        }
-        
-        let key = TfGraphNode{child: transform.child_frame_id.clone(), parent: transform.header.frame_id.clone()};
-        
-        if self.transform_data.contains_key(&key) {
-            let data = self.transform_data.get_mut(&key).unwrap();
-            data.add_to_buffer(transform.clone());
-        }
-        else {
-            let mut data = TfIndividualTransformChain::new(static_tf);
-            data.add_to_buffer(transform.clone());
-            self.transform_data.insert(key, data);
-        }
+
+        Ok(())
     }
  
     /// Retrieves the transform path
-    fn retrieve_transform_path(&self, from: String, to: String) -> Result<Vec<String>, TfError> {
+    fn retrieve_transform_path(&self, _from: String, _to: String) -> Result<Vec<String>, TfError> {
+        todo!()
+        /*
         let mut res = vec!();
         let mut frontier: VecDeque<String> = VecDeque::new();
         let mut visited: HashSet<String> = HashSet::new();
@@ -112,15 +131,50 @@ impl TfBuffer {
         }
         res.reverse();
         Ok(res)
+        */
     }
 }
 
-impl TransformInterface for TfBuffer {
+impl TransformInterface for Buffer {
     
     /// Looks up a transform within the tree at a given time.
-    fn lookup_transform(&self, source_frame: &str, target_frame: &str, time: rosrust::Time) -> Result<msg::TransformStamped,TfError> {
+    fn lookup_transform(&self, _source_frame: &str, _target_frame: &str, _time: rosrust::Time) -> Result<msg::TransformStamped,TfError> {
+        todo!()
+        /*
         let source_frame = source_frame.to_string();
         let target_frame = target_frame.to_string();
+        
+        if target_frame == source_frame {
+            let identity = msg::TransformStamped {
+                header: msg::Header {
+                    stamp: rosrust::Time::default(),
+                    seq: 0u32, 
+                    frame_id: target_frame,
+                },
+                child_frame_id: source_frame,
+                transform: msg::Transform {
+                    rotation: msg::Quaternion {
+                        w: 1f64,
+                        x: 0f64,
+                        y: 0f64,
+                        z: 0f64
+                    },
+                    translation: msg::Vector3 {
+                        x: 0f64,
+                        y: 0f64,
+                        z: 0f64
+                    }
+                }
+            };
+
+            if time == rosrust::Time::default() { // TODO maybe inject a wrapper to isolate this dependency to ROS
+                // If time is Time 0
+
+            }
+            Ok(identity)
+        }
+        else {
+
         let path = self.retrieve_transform_path(source_frame.clone(), target_frame.clone())?;
         
         let mut tflist = Vec::<msg::Transform>::new();
@@ -143,7 +197,7 @@ impl TransformInterface for TfBuffer {
                 }
             } ;
             tflist.push(tf);
-            first = intermediate.clone();                  
+            first = intermediate.clone();
         }
         let final_tf = transforms::chain_transforms(tflist);
         let msg = msg::TransformStamped {
@@ -162,7 +216,9 @@ impl TransformInterface for TfBuffer {
                 }
             }
         };
-        Ok(msg)
+            Ok(msg)
+        }
+        */
     }
 
     // TODO(MathuxNY-73) implement those methods
@@ -172,7 +228,7 @@ impl TransformInterface for TfBuffer {
     fn transform_from_input<T>(&self, _input: T, _target: &str, _timeout: Option<rosrust::Duration>) -> T {todo!()}
 }
 
-impl TransformWithTimeInterface for TfBuffer {
+impl TransformWithTimeInterface for Buffer {
     fn lookup_transform_with_time_travel(&self, target_frame: &str, target_time: rosrust::Time, source_frame: &str, source_time: rosrust::Time,  fixed_frame: &str, _timeout: rosrust::Duration) ->  Result<msg::TransformStamped,TfError> {
         let source_tf = self.lookup_transform(source_frame, fixed_frame, source_time)?;
         let target_tf = self.lookup_transform(target_frame, fixed_frame, target_time)?;
@@ -188,168 +244,168 @@ impl TransformWithTimeInterface for TfBuffer {
         _timeout: rosrust::Duration) -> Result<bool, TfError> {todo!()}
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    /// This function builds a tree consisting of the following items:
-    /// * a world coordinate frame
-    /// * an item in the world frame at (1,0,0)
-    /// * base_link of a robot starting at (0,0,0) and progressing at (0,t,0) where t is time in seconds
-    /// * a camera which is (0.5, 0, 0) from the base_link  
-    fn build_test_tree(buffer: &mut TfBuffer, time: f64) {
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     /// This function builds a tree consisting of the following items:
+//     /// * a world coordinate frame
+//     /// * an item in the world frame at (1,0,0)
+//     /// * base_link of a robot starting at (0,0,0) and progressing at (0,t,0) where t is time in seconds
+//     /// * a camera which is (0.5, 0, 0) from the base_link  
+//     fn build_test_tree(buffer: &mut Buffer, time: f64) {
         
-        let nsecs = ((time - ((time.floor() as i64) as f64))*1E9) as u32;
+//         let nsecs = ((time - ((time.floor() as i64) as f64))*1E9) as u32;
 
-        let world_to_item = msg::TransformStamped {
-            child_frame_id: "item".to_string(),
-            header: msg::Header {
-                frame_id: "world".to_string(),
-                stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
-                seq: 1
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w: 1f64
-                },
-                translation: msg::Vector3{
-                    x: 1f64, y: 0f64, z: 0f64
-                }
-           }
-        };
-        let world_to_item_inverse = get_inverse(world_to_item.clone());
-        buffer.add_transform(world_to_item, true);
-        buffer.add_transform(world_to_item_inverse, true);
+//         let world_to_item = msg::TransformStamped {
+//             child_frame_id: "item".to_string(),
+//             header: msg::Header {
+//                 frame_id: "world".to_string(),
+//                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
+//                 seq: 1
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 1f64, y: 0f64, z: 0f64
+//                 }
+//            }
+//         };
+//         let world_to_item_inverse = get_inverse(world_to_item.clone());
+//         buffer.add_transform(world_to_item, true);
+//         buffer.add_transform(world_to_item_inverse, true);
 
-        let world_to_base_link = msg::TransformStamped {
-            child_frame_id: "base_link".to_string(),
-            header: msg::Header {
-                frame_id: "world".to_string(),
-                stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
-                seq: 1
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w: 1f64
-                },
-                translation: msg::Vector3{
-                    x: 0f64, y: time, z: 0f64
-                }
-           }
-        };
-        let world_to_base_link_inv = get_inverse(world_to_base_link.clone());
-        buffer.add_transform(world_to_base_link, false);
-        buffer.add_transform(world_to_base_link_inv,  false);
+//         let world_to_base_link = msg::TransformStamped {
+//             child_frame_id: "base_link".to_string(),
+//             header: msg::Header {
+//                 frame_id: "world".to_string(),
+//                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
+//                 seq: 1
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 0f64, y: time, z: 0f64
+//                 }
+//            }
+//         };
+//         let world_to_base_link_inv = get_inverse(world_to_base_link.clone());
+//         buffer.add_transform(world_to_base_link, false);
+//         buffer.add_transform(world_to_base_link_inv,  false);
 
-        let base_link_to_camera = msg::TransformStamped {
-            child_frame_id: "camera".to_string(),
-            header: msg::Header {
-                frame_id: "base_link".to_string(),
-                stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
-                seq: 1
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w:1f64
-                },
-                translation: msg::Vector3{
-                    x: 0.5f64, y: 0f64, z: 0f64
-                }
-           }
-        };
-        let base_link_to_camera_inv = get_inverse(base_link_to_camera.clone());
-        buffer.add_transform(base_link_to_camera, true);
-        buffer.add_transform(base_link_to_camera_inv, true);
-    }
+//         let base_link_to_camera = msg::TransformStamped {
+//             child_frame_id: "camera".to_string(),
+//             header: msg::Header {
+//                 frame_id: "base_link".to_string(),
+//                 stamp: rosrust::Time{sec: time.floor() as u32, nsec: nsecs},
+//                 seq: 1
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w:1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 0.5f64, y: 0f64, z: 0f64
+//                 }
+//            }
+//         };
+//         let base_link_to_camera_inv = get_inverse(base_link_to_camera.clone());
+//         buffer.add_transform(base_link_to_camera, true);
+//         buffer.add_transform(base_link_to_camera_inv, true);
+//     }
 
 
-    /// Tests a basic lookup
-    #[test]
-    fn test_basic_tf_lookup() {
-        let mut tf_buffer = TfBuffer::new();
-        build_test_tree(&mut tf_buffer, 0f64);
-        let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:0});
-        let expected = msg::TransformStamped {
-            child_frame_id: "item".to_string(),
-            header: msg::Header {
-                frame_id: "camera".to_string(), 
-                stamp: rosrust::Time{sec:0, nsec:0},
-                seq: 1
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w: 1f64
-                },
-                translation: msg::Vector3{
-                    x: 0.5f64, y: 0f64, z: 0f64
-                }
-            }
-        };
-        assert_eq!(res.unwrap(), expected);
-    }
+//     /// Tests a basic lookup
+//     #[test]
+//     fn test_basic_tf_lookup() {
+//         let mut tf_buffer = Buffer::new();
+//         build_test_tree(&mut tf_buffer, 0f64);
+//         let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:0});
+//         let expected = msg::TransformStamped {
+//             child_frame_id: "item".to_string(),
+//             header: msg::Header {
+//                 frame_id: "camera".to_string(), 
+//                 stamp: rosrust::Time{sec:0, nsec:0},
+//                 seq: 1
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 0.5f64, y: 0f64, z: 0f64
+//                 }
+//             }
+//         };
+//         assert_eq!(res.unwrap(), expected);
+//     }
 
-    /// Tests an interpolated lookup. 
-    #[test]
-    fn test_basic_tf_interpolation() {
-        let mut tf_buffer = TfBuffer::new();
-        build_test_tree(&mut tf_buffer, 0f64);
-        build_test_tree(&mut tf_buffer, 1f64);
-        let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:700_000_000});
-        let expected = msg::TransformStamped {
-            child_frame_id: "item".to_string(),
-            header: msg::Header {
-                frame_id: "camera".to_string(), 
-                stamp: rosrust::Time{sec:0, nsec:700_000_000},
-                seq: 1
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w: 1f64
-                },
-                translation: msg::Vector3{
-                    x: 0.5f64, y: -0.7f64, z: 0f64
-                }
-            }
-        };
-        assert_eq!(res.unwrap(), expected);
-    }
+//     /// Tests an interpolated lookup. 
+//     #[test]
+//     fn test_basic_tf_interpolation() {
+//         let mut tf_buffer = Buffer::new();
+//         build_test_tree(&mut tf_buffer, 0f64);
+//         build_test_tree(&mut tf_buffer, 1f64);
+//         let res = tf_buffer.lookup_transform("camera", "item", rosrust::Time{sec:0, nsec:700_000_000});
+//         let expected = msg::TransformStamped {
+//             child_frame_id: "item".to_string(),
+//             header: msg::Header {
+//                 frame_id: "camera".to_string(), 
+//                 stamp: rosrust::Time{sec:0, nsec:700_000_000},
+//                 seq: 1
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 0.5f64, y: -0.7f64, z: 0f64
+//                 }
+//             }
+//         };
+//         assert_eq!(res.unwrap(), expected);
+//     }
 
-    /// Tests an interpolated lookup. 
-    #[test]
-    fn test_basic_tf_timetravel() {
-        let mut tf_buffer = TfBuffer::new();
-        build_test_tree(&mut tf_buffer, 0f64);
-        build_test_tree(&mut tf_buffer, 1f64);
-        let res = tf_buffer.lookup_transform_with_time_travel("camera", rosrust::Time{sec:0, nsec: 400_000_000}, "camera", rosrust::Time{sec:0, nsec: 700_000_000}, "item", rosrust::Duration{sec:0, nsec: 700_000_000});
-        let expected = msg::TransformStamped {
-            child_frame_id: "camera".to_string(),
-            header: msg::Header {
-                frame_id: "camera".to_string(), 
-                stamp: rosrust::Time{sec:0, nsec:700_000_000},
-                seq: 0
-            },
-            transform: msg::Transform{
-                rotation: msg::Quaternion{
-                    x: 0f64, y: 0f64, z: 0f64, w: 1f64
-                },
-                translation: msg::Vector3{
-                    x: 0f64, y: 0.3f64, z: 0f64
-                }
-            }
-        };
-        assert_approx_eq(res.unwrap(), expected);
-    }
+//     /// Tests an interpolated lookup. 
+//     #[test]
+//     fn test_basic_tf_timetravel() {
+//         let mut tf_buffer = Buffer::new();
+//         build_test_tree(&mut tf_buffer, 0f64);
+//         build_test_tree(&mut tf_buffer, 1f64);
+//         let res = tf_buffer.lookup_transform_with_time_travel("camera", rosrust::Time{sec:0, nsec: 400_000_000}, "camera", rosrust::Time{sec:0, nsec: 700_000_000}, "item", rosrust::Duration{sec:0, nsec: 700_000_000});
+//         let expected = msg::TransformStamped {
+//             child_frame_id: "camera".to_string(),
+//             header: msg::Header {
+//                 frame_id: "camera".to_string(), 
+//                 stamp: rosrust::Time{sec:0, nsec:700_000_000},
+//                 seq: 0
+//             },
+//             transform: msg::Transform{
+//                 rotation: msg::Quaternion{
+//                     x: 0f64, y: 0f64, z: 0f64, w: 1f64
+//                 },
+//                 translation: msg::Vector3{
+//                     x: 0f64, y: 0.3f64, z: 0f64
+//                 }
+//             }
+//         };
+//         assert_approx_eq(res.unwrap(), expected);
+//     }
 
-    fn assert_approx_eq(msg1: msg::TransformStamped, msg2: msg::TransformStamped) {
-        assert_eq!(msg1.header, msg2.header);
-        assert_eq!(msg1.child_frame_id, msg2.child_frame_id);
+//     fn assert_approx_eq(msg1: msg::TransformStamped, msg2: msg::TransformStamped) {
+//         assert_eq!(msg1.header, msg2.header);
+//         assert_eq!(msg1.child_frame_id, msg2.child_frame_id);
 
-        assert!((msg1.transform.rotation.x - msg2.transform.rotation.x).abs() < 1e-9);
-        assert!((msg1.transform.rotation.y - msg2.transform.rotation.y).abs() < 1e-9);
-        assert!((msg1.transform.rotation.z - msg2.transform.rotation.z).abs() < 1e-9);
-        assert!((msg1.transform.rotation.w - msg2.transform.rotation.w).abs() < 1e-9);
+//         assert!((msg1.transform.rotation.x - msg2.transform.rotation.x).abs() < 1e-9);
+//         assert!((msg1.transform.rotation.y - msg2.transform.rotation.y).abs() < 1e-9);
+//         assert!((msg1.transform.rotation.z - msg2.transform.rotation.z).abs() < 1e-9);
+//         assert!((msg1.transform.rotation.w - msg2.transform.rotation.w).abs() < 1e-9);
 
-        assert!((msg1.transform.translation.x - msg2.transform.translation.x).abs() < 1e-9);
-        assert!((msg1.transform.translation.y - msg2.transform.translation.y).abs() < 1e-9);
-        assert!((msg1.transform.translation.z - msg2.transform.translation.z).abs() < 1e-9);
-    }
-}
+//         assert!((msg1.transform.translation.x - msg2.transform.translation.x).abs() < 1e-9);
+//         assert!((msg1.transform.translation.y - msg2.transform.translation.y).abs() < 1e-9);
+//         assert!((msg1.transform.translation.z - msg2.transform.translation.z).abs() < 1e-9);
+//     }
+// }

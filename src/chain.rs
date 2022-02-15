@@ -18,7 +18,11 @@ pub struct TfIndividualTransformChain {
 
 impl TfIndividualTransformChain {
     pub fn new(static_tf: bool) -> Self {
-        return TfIndividualTransformChain{buffer_size: 100, transform_chain:Vec::new(), static_tf: static_tf};
+        TfIndividualTransformChain {
+            buffer_size: 100,
+            transform_chain:Vec::new(),
+            static_tf: static_tf
+        }
     }
 
     pub fn add_to_buffer(&mut self, msg: msg::TransformStamped) {
